@@ -11,7 +11,7 @@ def run_bot():
     config = load_config(CONFIG_PATH)
     
     bot = tb.TeleBot(config['TOKEN'])
-    connect_handlers(bot)
+    connect_handlers(bot, config)
     
     print('Бот запущен.')
     bot.infinity_polling()
