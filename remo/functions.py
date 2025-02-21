@@ -4,3 +4,4 @@ def load_config(path: str) -> dict:
         data = f.read()
         f.close()
         return loads(data)
+

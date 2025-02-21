@@ -1,33 +1,34 @@
 from telebot import TeleBot
-from telebot.types import Message, KeyboardButton, ReplyKeyboardMarkup
-import subprocess as sp
+from telebot.types import Message, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
-welcome_kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-welcome_kb.add(
-    KeyboardButton('⚙ Выполнить команды на сервере'),
-    KeyboardButton('🔑 Подключиться по SSH')
-)
 
 def connect_handlers(bot: TeleBot, config: dict):
     '''
     Подключение хэндлеров.
     '''
+    welcome_kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+    welcome_kb.add(
+        KeyboardButton('⚙ Выполнить команды на сервере'),
+        KeyboardButton('🔑 Подключиться по SSH'),
+    )
+    
+    commands_kb = ReplyKeyboardMarkup(row_width=1)
+    commands_kb.add(
+        KeyboardButton("Открыть", web_app=WebAppInfo(config["webapp_url"]))
+    )
+    
     @bot.message_handler(commands=["start"])
     def welcome(msg: Message):
         bot.send_message(msg.chat.id, 'Привет!', reply_markup=welcome_kb)
-    
-    
-    # Локальное выполнение команд
+        print(msg.chat.id)
     
     @bot.message_handler(func=lambda msg: msg.text == "⚙ Выполнить команды на сервере")
-    def proceed_commands_localy(msg: Message):
-        bot.send_message(msg.chat.id, 'Отправь мне команду, чтобы я выполнил её на локальном сервере.')
-        bot.register_next_step_handler(msg, proceed_command)
-        
-    def proceed_command(msg: Message):
-        if msg.text.strip() in config['dangerous']:
-            bot.send_message(msg.chat.id, 'Ай-ай-ай!! Опасная команда!')
-            return
-        
-        result = sp.run(msg.text.split(), capture_output=True, text=True).stdout.strip()
-        bot.send_message(msg.chat.id, f'Команда выполнена. Консольный вывод:\n\n{result}')
+    def auth(msg: Message):
+        if msg.chat.id in config['admins']:
+            bot.send_message(msg.chat.id, "У вас есть доступ. Нажмите на кнопку, чтобы открыть исполнитель команд.", reply_markup=commands_kb)
+        else:
+            bot.send_message(msg.chat.id, "У вас нет доступа.")
+    
+    @bot.message_handler(func=lambda msg: msg.text == "🔑 Подключиться по SSH")
+    def ssh_get_info(msg: Message):
+        pass

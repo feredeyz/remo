@@ -1,4 +1,6 @@
 {
     "TOKEN": "",
-    "dangerous": ["rm -rf /"]
+    "dangerous": ["rm -rf /", "ls -f"],
+    "webapp_url": "",
+    "admins": []
 }
