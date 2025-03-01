@@ -1,6 +1,32 @@
 {
     "TOKEN": "",
-    "dangerous": ["rm -rf /", "ls -f"],
     "webapp_url": "",
-    "admins": []
+    "admins": [],
+    "dangerous": [
+        "rm -rf /",
+        "rm -r -f /",
+        "rm -rf /*",
+        "dd if=/dev/zero of=/dev/sdX",
+        "dd if=/dev/null of=/dev/sdX",
+        "dd if=/dev/random of=/dev/sdX",
+        "mkfs.ext4 /dev/sdX",
+        "mkfs.xfs /dev/sdX",
+        "mkfs.btrfs /dev/sdX",
+        ">: /etc/passwd",
+        "> /etc/passwd",
+        "echo '' > /etc/passwd",
+        "chmod -R 000 /",
+        "chmod -R 000 /*",
+        "chmod -R a-rwx /",
+        "chown -R nobody:nogroup /",
+        "chown -R 65534:65534 /",
+        "mv /bin /dev/null",
+        "mv /sbin /dev/null",
+        "echo 'exit 0' > /etc/rc.local",
+        "find / -type f -exec shred -n 10 -z -u {} +",
+        "rm -rf ~",
+        "history -c && shutdown -h now",
+        "shutdown now",
+        "test -t"
+    ]
 }

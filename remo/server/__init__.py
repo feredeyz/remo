@@ -1,15 +1,19 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session, redirect, url_for
 from ..functions import load_config
 import subprocess as sp
 
 # uncomment to disable werkzeug logging
-# import logging
-# log = logging.getLogger('werkzeug')
-# log.setLevel(logging.ERROR)
+import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 CONFIG_PATH = "config.json"
 config = load_config(CONFIG_PATH)
+
+def is_dangerous(command: str) -> bool:
+    command = " ".join(command.strip().split())
+    return command in config['dangerous']
 
 @app.route('/')
 def index():
@@ -18,7 +22,7 @@ def index():
 @app.route('/proceed', methods=["POST"])
 def proceed_command():
     command = request.json['command']
-    if command in config['dangerous']:
+    if is_dangerous(command):
         return {"output": "Ай-ай-ай!! Опасная команда"}, 200
     try:
         result = sp.run(command, shell=True, capture_output=True, text=True).stdout.strip()
