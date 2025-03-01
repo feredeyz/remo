@@ -1,10 +1,12 @@
 from telebot import TeleBot
-from telebot.types import Message, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from telebot.types import Message, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from .functions import validate_ip_address
 import psutil
 import paramiko
 
 allowed_users = []
+connections = {}
+
 
 def connect_handlers(bot: TeleBot, config: dict):
     '''
@@ -13,13 +15,24 @@ def connect_handlers(bot: TeleBot, config: dict):
     welcome_kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     welcome_kb.add(
         KeyboardButton('⚙ Выполнить команды на сервере'),
-        KeyboardButton('🔑 Подключиться по SSH'),
+        KeyboardButton('🔑 SSH'),
     )
     
     commands_kb = ReplyKeyboardMarkup(row_width=1)
     commands_kb.add(
         KeyboardButton("Открыть", web_app=WebAppInfo(config["webapp_url"])),
         KeyboardButton("Мониторинг ресурсов")
+    )
+
+    ssh_kb = ReplyKeyboardMarkup(row_width=1)
+    ssh_kb.add(
+        KeyboardButton("Мои подключения"),
+        KeyboardButton("Подключиться")
+    )
+
+    conns_kb = InlineKeyboardMarkup()
+    conns_kb.add(
+        InlineKeyboardButton("Отключиться", callback_data="delete_conn")
     )
     
     @bot.message_handler(commands=["start"])
@@ -50,8 +63,31 @@ def connect_handlers(bot: TeleBot, config: dict):
         '''
         bot.send_message(msg.chat.id, result)
     
-    @bot.message_handler(func=lambda msg: msg.text == "🔑 Подключиться по SSH")
+    @bot.message_handler(func=lambda msg: msg.text == "🔑 SSH")
     def ssh_get_info(msg: Message):
+        bot.send_message(msg.chat.id, "Выберите опцию:", reply_markup=ssh_kb)
+
+    @bot.message_handler(content_types=["text"], func=lambda msg: msg.text == "Мои подключения")
+    def list_connections(msg: Message):
+        conn = connections.get(msg.chat.id)
+        if not conn:
+            bot.send_message(msg.chat.id, "Вы не подключены")
+        else:
+            ip = conn.get_transport().getpeername()
+            bot.send_message(msg.chat.id, ip, reply_markup=conns_kb)
+
+    @bot.callback_query_handler(func=lambda call: call.data == "delete_conn")
+    def disconnect(call: CallbackQuery):
+        conn = connections.get(call.message.chat.id)
+        if not conn:
+            bot.answer_callback_query(call.id, "Вы не подключены")
+        else:
+            conn.close()
+            del connections[call.message.chat.id]
+            bot.answer_callback_query(call.id, "Вы успешно отключились.")
+    
+    @bot.message_handler(content_types=["text"], func=lambda msg: msg.text == "Подключиться")
+    def connect_ssh(msg: Message):
         bot.send_message(msg.chat.id, "Отправь мне IP-адрес для подключения.")
         bot.register_next_step_handler(msg, get_ip_address)
         
@@ -70,5 +106,29 @@ def connect_handlers(bot: TeleBot, config: dict):
         
     def get_password(msg: Message, address: str, username: str):
         bot.send_message(msg.chat.id, "Хорошо! Сейчас попробую подключиться...")
-        
-        
+        password = msg.text
+        bot.delete_message(msg.chat.id, msg.id)
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(
+            hostname=address, username=username, password=password,
+            look_for_keys=False, allow_agent=False, timeout=10
+        )
+
+        connections[msg.chat.id] = client
+
+        bot.send_message(msg.chat.id, "Подключение произошло успешно! Напишите /ssh <команда>, чтобы выполнить команду.")
+
+    @bot.message_handler(commands=["ssh"])
+    def proceed_ssh(msg: Message):
+        if msg.chat.id not in connections.keys():
+            bot.send_message(msg.chat.id, "Вы не подключены.")
+            return
+        command = msg.text[4:]
+        if command in config['dangerous']:
+            bot.send_message(msg.chat.id, "Опасная команда!")
+            return
+        client = connections[msg.chat.id]
+        stdin, stdout, stderr = client.exec_command(command)
+        data = stdout.read() + stderr.read()
+        bot.send_message(msg.chat.id, data)
