@@ -7,7 +7,6 @@ import paramiko
 allowed_users = []
 connections = {}
 
-
 def connect_handlers(bot: TeleBot, config: dict):
     '''
     Подключение хэндлеров.
@@ -29,6 +28,11 @@ def connect_handlers(bot: TeleBot, config: dict):
         KeyboardButton("Мои подключения"),
         KeyboardButton("Подключиться")
     )
+    
+    stop_kb = ReplyKeyboardMarkup(row_width=1)
+    stop_kb.add(
+        KeyboardButton("❌ Отмена")
+    )
 
     conns_kb = InlineKeyboardMarkup()
     conns_kb.add(
@@ -37,7 +41,8 @@ def connect_handlers(bot: TeleBot, config: dict):
     
     @bot.message_handler(commands=["start"])
     def welcome(msg: Message):
-        bot.send_message(msg.chat.id, 'Привет!', reply_markup=welcome_kb)
+        img = open('remo/assets/logo.png', 'rb')
+        bot.send_photo(msg.chat.id, img, caption='Привет! Я Remo, помощник в удалённом управлении серверами. Выбери, как хочешь подключиться.', reply_markup=welcome_kb)
     
     @bot.message_handler(func=lambda msg: msg.text == "⚙ Выполнить команды на сервере")
     def auth(msg: Message):
@@ -88,33 +93,45 @@ def connect_handlers(bot: TeleBot, config: dict):
     
     @bot.message_handler(content_types=["text"], func=lambda msg: msg.text == "Подключиться")
     def connect_ssh(msg: Message):
-        bot.send_message(msg.chat.id, "Отправь мне IP-адрес для подключения.")
+        bot.send_message(msg.chat.id, "Отправь мне IP-адрес для подключения.", reply_markup=stop_kb)
         bot.register_next_step_handler(msg, get_ip_address)
         
     def get_ip_address(msg: Message):
+        if msg.text == "❌ Отмена":
+            bot.send_message(msg.chat.id, "Отменяю...")
+            return
         address = msg.text
         if not validate_ip_address(address):
-            bot.send_message(msg.chat.id, "Неправильно введённый IP-адрес. Попробуйте написать ещё раз.")
+            bot.send_message(msg.chat.id, "Неправильно введённый IP-адрес. Попробуйте написать ещё раз.", reply_markup=stop_kb)
             bot.register_next_step_handler(msg, get_ip_address)
         else:
-            bot.send_message(msg.chat.id, "Отлично! Теперь напиши мне свой никнейм.")
+            bot.send_message(msg.chat.id, "Отлично! Теперь напиши мне свой никнейм.", reply_markup=stop_kb)
             bot.register_next_step_handler(msg, get_username, address)
 
     def get_username(msg: Message, address: str):
-        bot.send_message(msg.chat.id, "Отлично! Теперь напиши мне свой пароль! Только на ушко!!")
+        if msg.text == "❌ Отмена":
+            bot.send_message(msg.chat.id, "Отменяю...")
+            return
+        bot.send_message(msg.chat.id, "Отлично! Теперь напиши мне свой пароль! Только на ушко!!", reply_markup=stop_kb)
         bot.register_next_step_handler(msg, get_password, address, msg.text)
         
     def get_password(msg: Message, address: str, username: str):
+        if msg.text == "❌ Отмена":
+            bot.send_message(msg.chat.id, "Отменяю...")
+            return
         bot.send_message(msg.chat.id, "Хорошо! Сейчас попробую подключиться...")
         password = msg.text
         bot.delete_message(msg.chat.id, msg.id)
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(
-            hostname=address, username=username, password=password,
-            look_for_keys=False, allow_agent=False, timeout=10
-        )
-
+        try:
+            client.connect(
+                hostname=address, username=username, password=password,
+                look_for_keys=False, allow_agent=False, timeout=10
+            )
+        except:
+            bot.send_message(msg.chat.id, "Ошибка подключения!")
+            return
         connections[msg.chat.id] = client
 
         bot.send_message(msg.chat.id, "Подключение произошло успешно! Напишите /ssh <команда>, чтобы выполнить команду.")
